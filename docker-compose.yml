@@ -11,7 +11,6 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Скрипт init.sql выполнится автоматически при первом запуске БД
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
 
@@ -20,12 +19,20 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Переменные окружения для подключения к БД (host = имя сервиса БД)
       DB_USER: travel_user
       DB_PASSWORD: travel_password
       DB_NAME: travel_db
       DB_HOST: db
       DB_PORT: 5432
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  # НОВЫЙ БЛОК: Веб-интерфейс базы данных (Аналог phpMyAdmin)
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080" # Будет доступен на порту 8080
     depends_on:
       - db
     restart: unless-stopped

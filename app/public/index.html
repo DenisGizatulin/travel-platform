@@ -2,106 +2,78 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Travel Route Platform</title>
+    <title>Travel Platform</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: Arial, sans-serif; display: flex; margin: 0; padding: 0; height: 100vh; background: #f0f2f5;}
-        #sidebar { width: 400px; background: white; height: 100%; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 1000; display: flex; flex-direction: column;}
+        body { font-family: Arial, sans-serif; display: flex; margin: 0; padding: 0; height: 100vh;}
+        #sidebar { width: 450px; background: white; height: 100%; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 1000; display: flex; flex-direction: column;}
         .tabs { display: flex; background: #343a40; color: white; cursor: pointer; }
-        .tab { flex: 1; text-align: center; padding: 15px 0; font-weight: bold; font-size: 14px; }
-        .tab:hover, .tab.active { background: #495057; }
+        .tab { flex: 1; text-align: center; padding: 15px 0; font-size: 13px; font-weight: bold;}
+        .tab:hover, .tab.active { background: #0d6efd; }
         .content { padding: 20px; display: none; }
         .content.active { display: block; }
-        
         #map { flex-grow: 1; height: 100%; z-index: 1;}
         
-        .route-card { border: 1px solid #dee2e6; padding: 15px; margin-bottom: 15px; border-radius: 8px; cursor: pointer; background: #fff;}
-        .route-card:hover { border-color: #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.05);}
-        .tags { display: flex; gap: 5px; margin-top: 5px; margin-bottom: 10px; }
-        .tag { background: #e9ecef; font-size: 11px; padding: 3px 8px; border-radius: 12px; color: #495057; }
-        .tag.diff { background: #ffeeba; color: #856404; }
+        .card { border: 1px solid #dee2e6; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fff;}
+        .tags { margin: 10px 0; font-size: 12px;} .tag { background: #e9ecef; padding: 4px 8px; border-radius: 12px; margin-right: 5px;}
         
-        button { border: none; padding: 8px 12px; cursor: pointer; border-radius: 5px; font-weight: bold; transition: 0.2s; color: white; }
-        .btn-primary { background: #0d6efd; } .btn-primary:hover { background: #0b5ed7; }
-        .btn-danger { background: #dc3545; } .btn-success { background: #198754; } .btn-warning { background: #ffc107; color: black; }
-        
-        .btn-group { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap;}
-        
-        input, textarea, select { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 10px; border: 1px solid #ced4da; border-radius: 4px;}
-        .map-tool-info { background: #e2e3e5; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 13px; border-left: 4px solid #0d6efd;}
+        button { border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; color: white; margin-top: 5px;}
+        .btn-primary { background: #0d6efd; } .btn-success { background: #198754; } .btn-warning { background: #ffc107; color: black;}
+        input, select, textarea { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
+        .collection-item { background: #f8f9fa; padding: 10px; margin-bottom: 5px; display: flex; justify-content: space-between;}
     </style>
 </head>
 <body>
 
     <div id="sidebar">
         <div class="tabs">
-            <div class="tab active" onclick="switchTab('list')">Все</div>
-            <div class="tab" onclick="switchTab('recs')">Для Вас</div>
-            <div class="tab" onclick="switchTab('favs')">Избранное</div>
+            <div class="tab active" onclick="switchTab('list')">Все Маршруты</div>
+            <div class="tab" onclick="switchTab('collections')">Мои Подборки</div>
+            <div class="tab" onclick="switchTab('profile')">Профиль & Рекомендации</div>
             <div class="tab" onclick="switchTab('create')">Создать</div>
         </div>
 
-        <!-- Список маршрутов -->
         <div id="list" class="content active">
-            <h2>Все маршруты</h2>
-            <div id="routesList">Загрузка...</div>
+            <h2 id="listTitle">Доступные маршруты</h2>
+            <div id="routesList"></div>
         </div>
 
-        <!-- Рекомендации -->
-        <div id="recs" class="content">
-            <h2>Рекомендации</h2>
-            <p style="font-size: 12px; color: gray;">На основе ваших высоких оценок (совпадение категорий и сложности).</p>
+        <div id="collections" class="content">
+            <h2>Создать коллекцию</h2>
+            <input type="text" id="newCollName" placeholder="Название (напр. 'Лето 2024')">
+            <button class="btn-primary" onclick="createCollection()">Создать</button>
+            <hr>
+            <h2>Мои коллекции</h2>
+            <div id="collectionsList"></div>
+        </div>
+
+        <div id="profile" class="content">
+            <h2>Мои предпочтения</h2>
+            <p style="font-size:12px">Введите ваши любимые категории через запятую (напр. Горы, Парки, Экстрим)</p>
+            <input type="text" id="prefsInput" placeholder="Ваши интересы">
+            <button class="btn-success" onclick="savePrefs()">Сохранить предпочтения</button>
+            <hr>
+            <h2>Рекомендовано вам</h2>
             <div id="recsList"></div>
         </div>
 
-        <!-- Избранное -->
-        <div id="favs" class="content">
-            <h2>Мои коллекции</h2>
-            <div id="favsList"></div>
-        </div>
-
-        <!-- Создание / Редактирование -->
         <div id="create" class="content">
-            <h2 id="formTitle">Новый маршрут</h2>
-            <div class="map-tool-info" id="mapToolInfo">
-                Заполните данные. Затем <b>кликайте по карте</b>, чтобы расставить гео-точки вашего маршрута!
-            </div>
+            <h2>Новый маршрут</h2>
             <form id="routeForm">
-                <input type="hidden" id="editId">
-                <input type="text" id="title" placeholder="Название маршрута" required>
+                <input type="text" id="title" placeholder="Название" required>
                 <textarea id="description" placeholder="Описание" rows="3"></textarea>
                 
-                <select id="category">
-                    <option value="Живописные">Живописные</option>
-                    <option value="Короткие">Короткие прогулки</option>
-                    <option value="Сложные">Сложные (Походы)</option>
-                    <option value="Исторические">Исторические</option>
-                </select>
+                <!-- DATALIST: Позволяет и выбирать, и писать свой текст -->
+                <label>Категория (выберите или впишите свою):</label>
+                <input list="catList" id="category" placeholder="Например: Исторические" required>
+                <datalist id="catList"></datalist>
                 
-                <label style="font-size:12px; font-weight:bold;">Сложность (1-5):</label>
+                <label>Сложность: <span id="diffVal">3</span></label>
                 <input type="range" id="difficulty" min="1" max="5" value="3" oninput="document.getElementById('diffVal').innerText=this.value">
-                <span id="diffVal" style="font-weight:bold;">3</span>
 
-                <div style="margin-top:15px; font-weight:bold;">Дистанция: <span id="distDisplay">0</span> км</div>
-                <div style="font-size:12px; color:gray; margin-bottom:15px;">Точек: <span id="pointsCount">0</span> (Кликайте по карте)</div>
-
-                <button type="button" onclick="clearTempMap()" class="btn-danger" style="width:100%; margin-bottom:10px;">Очистить точки на карте</button>
-                <button type="submit" class="btn-primary" style="width:100%; padding:15px;">Сохранить маршрут</button>
-            </form>
-        </div>
-
-        <!-- Инфо о маршруте (Скрытая вкладка, открывается по клику) -->
-        <div id="info" class="content">
-            <button onclick="switchTab('list')" style="background:gray; margin-bottom:15px;">← Назад к списку</button>
-            <div id="routeDetails"></div>
-            
-            <hr>
-            <h3>Оставить отзыв</h3>
-            <form id="reviewForm">
-                <input type="hidden" id="revRouteId">
-                <input type="number" id="revRating" placeholder="Оценка (1-5)" min="1" max="5" required>
-                <textarea id="revComment" placeholder="Текст отзыва..." required></textarea>
-                <button type="submit" class="btn-success" style="width:100%">Отправить</button>
+                <div style="margin: 15px 0;">Дистанция: <span id="distDisplay">0</span> км | Точек: <span id="pointsCount">0</span></div>
+                <button type="button" onclick="clearTempMap()" class="btn-warning" style="width:100%">Очистить карту</button>
+                <button type="submit" class="btn-primary" style="width:100%; margin-top:10px;">Сохранить маршрут</button>
             </form>
         </div>
     </div>
@@ -110,218 +82,160 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Инициализация карты
         const map = L.map('map').setView([43.5855, 39.7231], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        let mapLayers = L.featureGroup().addTo(map); // Слой для просмотра
-        let createLayers = L.featureGroup().addTo(map); // Слой для рисования при создании
-        let isCreateMode = false;
-        
-        let tempPOIs = []; // Временные точки для нового маршрута
-        let currentDistance = 0; // Дистанция
+        let mapLayers = L.featureGroup().addTo(map);
+        let createLayers = L.featureGroup().addTo(map);
+        let isCreateMode = false, tempPOIs = [], myCollections = [];
 
-        // Вкладки
         function switchTab(tabId) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
             event.currentTarget.classList.add('active');
             document.getElementById(tabId).classList.add('active');
-            
             isCreateMode = (tabId === 'create');
-            if(tabId === 'create') clearTempMap(); // Подготовка к рисованию
-            if(tabId === 'list') loadRoutes();
-            if(tabId === 'favs') loadFavorites();
-            if(tabId === 'recs') loadRecs();
+            
+            if(tabId === 'create') loadCategories();
+            if(tabId === 'list') { document.getElementById('listTitle').innerText = 'Все маршруты'; loadRoutes(); }
+            if(tabId === 'collections') loadCollections();
+            if(tabId === 'profile') loadProfileAndRecs();
         }
 
-        function switchTabProgrammatic(tabId) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            isCreateMode = false;
-        }
-
-        // --- ЛОГИКА КАРТЫ (РИСОВАНИЕ) ---
+        // Рисование на карте
         map.on('click', function(e) {
             if (!isCreateMode) return;
-            
-            const latlng = e.latlng;
-            tempPOIs.push({ lat: latlng.lat, lng: latlng.lng });
-            
-            L.marker(latlng).addTo(createLayers);
-            
+            tempPOIs.push(e.latlng);
+            createLayers.clearLayers();
+            tempPOIs.forEach(p => L.marker(p).addTo(createLayers));
             if (tempPOIs.length > 1) {
-                const latlngs = tempPOIs.map(p => [p.lat, p.lng]);
-                createLayers.clearLayers();
-                
-                tempPOIs.forEach(p => L.marker([p.lat, p.lng]).addTo(createLayers));
-                L.polyline(latlngs, {color: 'red', weight: 4}).addTo(createLayers);
-                
-                // Расчет дистанции (в метрах -> километры)
-                currentDistance = 0;
-                for(let i = 0; i < tempPOIs.length - 1; i++){
-                    currentDistance += map.distance([tempPOIs[i].lat, tempPOIs[i].lng], [tempPOIs[i+1].lat, tempPOIs[i+1].lng]);
-                }
-                document.getElementById('distDisplay').innerText = (currentDistance / 1000).toFixed(2);
+                L.polyline(tempPOIs, {color: 'red'}).addTo(createLayers);
+                let dist = 0;
+                for(let i=0; i<tempPOIs.length-1; i++) dist += map.distance(tempPOIs[i], tempPOIs[i+1]);
+                document.getElementById('distDisplay').innerText = (dist/1000).toFixed(2);
             }
             document.getElementById('pointsCount').innerText = tempPOIs.length;
         });
 
-        function clearTempMap() {
-            createLayers.clearLayers();
-            tempPOIs = [];
-            currentDistance = 0;
-            document.getElementById('distDisplay').innerText = '0';
-            document.getElementById('pointsCount').innerText = '0';
-            document.getElementById('editId').value = '';
-            document.getElementById('formTitle').innerText = 'Новый маршрут';
-            document.getElementById('routeForm').reset();
+        function clearTempMap() { createLayers.clearLayers(); tempPOIs = []; document.getElementById('distDisplay').innerText='0'; document.getElementById('pointsCount').innerText='0'; }
+
+        // Загрузка списков
+        async function loadCategories() {
+            const res = await fetch('/api/categories');
+            const cats = await res.json();
+            document.getElementById('catList').innerHTML = cats.map(c => `<option value="${c}">`).join('');
         }
 
-        // --- ЗАГРУЗКА И ОТОБРАЖЕНИЕ МАРШРУТОВ ---
+        async function loadCollections() {
+            const res = await fetch('/api/collections');
+            myCollections = await res.json();
+            document.getElementById('collectionsList').innerHTML = myCollections.map(c => `
+                <div class="collection-item">
+                    <b>${c.name}</b>
+                    <button class="btn-success" onclick="shareCollection(${c.id})">🔗 Поделиться</button>
+                </div>
+            `).join('');
+        }
+
+        async function loadProfileAndRecs() {
+            const prefRes = await fetch('/api/preferences');
+            document.getElementById('prefsInput').value = (await prefRes.json()).prefs;
+            
+            const recsRes = await fetch('/api/recommendations');
+            renderRoutes(await recsRes.json(), 'recsList', true); // Без кнопок "Добавить"
+        }
+
         async function loadRoutes() {
+            await loadCollections(); // Обновим список коллекций для селектора
             const res = await fetch('/api/routes');
-            renderList(await res.json(), 'routesList');
-        }
-        async function loadFavorites() {
-            const res = await fetch('/api/favorites');
-            renderList(await res.json(), 'favsList');
-        }
-        async function loadRecs() {
-            const res = await fetch('/api/recommendations');
-            renderList(await res.json(), 'recsList');
+            renderRoutes(await res.json(), 'routesList', false);
         }
 
-        function renderList(routes, containerId) {
+        // Отрисовка карточек
+        function renderRoutes(routes, containerId, isReadOnly) {
             const list = document.getElementById(containerId);
-            list.innerHTML = routes.length === 0 ? '<p>Ничего не найдено</p>' : '';
+            list.innerHTML = routes.length ? '' : 'Нет маршрутов';
+            
+            // Генерируем выпадающий список коллекций юзера
+            const collOptions = myCollections.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
 
-            routes.forEach(route => {
+            routes.forEach(r => {
                 const div = document.createElement('div');
-                div.className = 'route-card';
-                div.onclick = () => openRouteInfo(route);
-                
+                div.className = 'card';
                 div.innerHTML = `
-                    <h3 style="margin:0 0 5px 0">${route.title}</h3>
-                    <div class="tags">
-                        <span class="tag">${route.category}</span>
-                        <span class="tag diff">Сложность: ${route.difficulty}/5</span>
-                        <span class="tag">★ ${parseFloat(route.avg_rating||0).toFixed(1)}</span>
-                    </div>
-                    <small style="color:gray">${route.distance_km} км | Точек: ${route.poi ? route.poi.length : 0}</small>
+                    <h3>${r.title}</h3>
+                    <div class="tags"><span class="tag">${r.category}</span><span class="tag">Сложность: ${r.difficulty}</span></div>
+                    <p style="font-size:12px">${r.description}</p>
+                    <button class="btn-primary" onclick='drawRoute(${JSON.stringify(r.poi)})'>🗺️ Показать на карте</button>
                     
-                    <div class="btn-group" onclick="event.stopPropagation()">
-                        <button class="btn-warning" onclick="toggleFav(${route.id})">⭐ Избранное</button>
-                        <button class="btn-success" onclick="shareRoute(${route.id})">🔗 Поделиться</button>
-                        <button class="btn-primary" onclick="editRoute(${route.id}, '${route.title}', '${route.category}', ${route.difficulty})">✏️ Изм.</button>
-                        <button class="btn-danger" onclick="deleteRoute(${route.id})">🗑️</button>
-                    </div>
+                    ${!isReadOnly && myCollections.length > 0 ? `
+                        <div style="margin-top:10px; background:#f4f4f4; padding:5px; border-radius:5px;">
+                            <select id="sel_${r.id}" style="width:60%; display:inline;">${collOptions}</select>
+                            <button class="btn-warning" onclick="addToColl(${r.id})">В коллекцию</button>
+                        </div>
+                    ` : ''}
                 `;
                 list.appendChild(div);
             });
         }
 
-        // --- ПРОСМОТР ИНФОРМАЦИИ И ОТРИСОВКА ---
-        function openRouteInfo(route) {
-            switchTabProgrammatic('info');
-            document.getElementById('revRouteId').value = route.id;
-            
-            const details = document.getElementById('routeDetails');
-            details.innerHTML = `
-                <h2>${route.title}</h2>
-                <p><b>Категория:</b> ${route.category} | <b>Сложность:</b> ${route.difficulty}/5</p>
-                <p><b>Дистанция:</b> ${route.distance_km} км</p>
-                <p>${route.description}</p>
-            `;
-
+        function drawRoute(poi) {
             mapLayers.clearLayers();
-            if (route.poi && route.poi.length > 0) {
-                const latlngs = route.poi.map(p => [p.lat, p.lng]);
-                const polyline = L.polyline(latlngs, {color: '#0d6efd', weight: 5}).addTo(mapLayers);
-                
-                route.poi.forEach((p, index) => {
-                    L.marker([p.lat, p.lng]).addTo(mapLayers)
-                     .bindPopup(`<b>Точка ${index+1}</b>`);
-                });
-                map.fitBounds(polyline.getBounds());
-            }
+            if(!poi || !poi.length) return alert('Нет гео-точек');
+            const latlngs = poi.map(p => [p.lat, p.lng]);
+            const polyline = L.polyline(latlngs, {color: 'blue', weight: 4}).addTo(mapLayers);
+            poi.forEach((p, i) => L.marker([p.lat, p.lng]).bindPopup(`Точка ${i+1}`).addTo(mapLayers));
+            map.fitBounds(polyline.getBounds());
         }
 
-        // --- ДЕЙСТВИЯ ---
+        // Действия
+        async function savePrefs() {
+            await fetch('/api/preferences', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({prefs: document.getElementById('prefsInput').value}) });
+            alert('Предпочтения сохранены!');
+            loadProfileAndRecs();
+        }
+
+        async function createCollection() {
+            const name = document.getElementById('newCollName').value;
+            if(!name) return;
+            await fetch('/api/collections', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
+            document.getElementById('newCollName').value = '';
+            loadCollections();
+        }
+
+        async function addToColl(routeId) {
+            const collId = document.getElementById(`sel_${routeId}`).value;
+            await fetch('/api/collections/add', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({collection_id: collId, route_id: routeId}) });
+            alert('Добавлено в коллекцию!');
+        }
+
+        function shareCollection(collId) {
+            const url = `${window.location.origin}/?shared_collection=${collId}`;
+            navigator.clipboard.writeText(url);
+            alert('Ссылка на коллекцию скопирована!\nОтправьте её друзьям.');
+        }
+
         document.getElementById('routeForm').onsubmit = async (e) => {
             e.preventDefault();
-            const id = document.getElementById('editId').value;
             const data = {
-                title: document.getElementById('title').value,
-                description: document.getElementById('description').value,
-                category: document.getElementById('category').value,
-                difficulty: document.getElementById('difficulty').value,
-                distance_km: (currentDistance / 1000).toFixed(2),
-                poi: tempPOIs
+                title: document.getElementById('title').value, description: document.getElementById('description').value,
+                category: document.getElementById('category').value, difficulty: document.getElementById('difficulty').value,
+                distance_km: document.getElementById('distDisplay').innerText, poi: tempPOIs
             };
-
-            if (id) {
-                await fetch(`/api/routes/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-            } else {
-                if (tempPOIs.length < 2) return alert('Поставьте минимум 2 точки на карте!');
-                await fetch('/api/routes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-            }
-            alert('Сохранено!');
-            clearTempMap();
-            document.querySelector('.tab').click(); // Возврат на первую вкладку
+            if(tempPOIs.length < 2) return alert('Минимум 2 точки!');
+            await fetch('/api/routes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            alert('Маршрут создан!'); clearTempMap(); document.querySelectorAll('.tab')[0].click();
         };
 
-        async function deleteRoute(id) {
-            if(confirm('Удалить маршрут?')) {
-                await fetch(`/api/routes/${id}`, { method: 'DELETE' });
-                loadRoutes();
-            }
-        }
-
-        async function toggleFav(id) {
-            await fetch('/api/favorites', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({route_id: id}) });
-            alert('Избранное обновлено');
-            loadFavorites();
-        }
-
-        function shareRoute(id) {
-            const url = `${window.location.origin}/?route=${id}`;
-            navigator.clipboard.writeText(url);
-            alert('Ссылка скопирована!\n' + url);
-        }
-
-        function editRoute(id, title, category, difficulty) {
-            document.querySelectorAll('.tab')[3].click(); // Открыть вкладку "Создать"
-            document.getElementById('formTitle').innerText = 'Редактирование маршрута (Гео-точки изменить нельзя)';
-            document.getElementById('editId').value = id;
-            document.getElementById('title').value = title;
-            document.getElementById('category').value = category;
-            document.getElementById('difficulty').value = difficulty;
-            document.getElementById('mapToolInfo').style.display = 'none'; // Скрыть инфо про карту
-        }
-
-        document.getElementById('reviewForm').onsubmit = async (e) => {
-            e.preventDefault();
-            await fetch('/api/reviews', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    route_id: document.getElementById('revRouteId').value,
-                    rating: document.getElementById('revRating').value,
-                    comment: document.getElementById('revComment').value
-                })
-            });
-            alert('Отзыв отправлен!');
-            e.target.reset();
-        };
-
-        // --- ОБРАБОТКА ШАРИНГА ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ---
+        // Загрузка расшаренной коллекции по ссылке
         window.onload = async () => {
             const params = new URLSearchParams(window.location.search);
-            const routeId = params.get('route');
-            if (routeId) {
-                const res = await fetch(`/api/routes/${routeId}`);
-                if (res.ok) openRouteInfo(await res.json());
+            const sharedId = params.get('shared_collection');
+            if (sharedId) {
+                const res = await fetch(`/api/collections/${sharedId}`);
+                const routes = await res.json();
+                document.getElementById('listTitle').innerText = `Коллекция: ${routes[0]?.collection_name || 'Пустая'}`;
+                renderRoutes(routes, 'routesList', true);
             } else {
                 loadRoutes();
             }
