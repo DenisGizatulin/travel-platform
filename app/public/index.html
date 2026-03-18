@@ -83,6 +83,9 @@
         let mapLayers = L.featureGroup().addTo(map);
         let createLayers = L.featureGroup().addTo(map);
         let isCreateMode = false, tempPOIs = [], myCollections = [];
+        
+        // Глобальное хранилище для безопасной передачи гео-точек
+        window.routePOIs = {}; 
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -113,7 +116,6 @@
 
         function clearTempMap() { createLayers.clearLayers(); tempPOIs = []; document.getElementById('distDisplay').innerText='0'; document.getElementById('pointsCount').innerText='0'; }
 
-        // Безопасный запрос к API
         async function safeFetch(url) {
             try {
                 const res = await fetch(url);
@@ -151,19 +153,26 @@
 
         function renderRoutes(routes, containerId, isReadOnly) {
             const list = document.getElementById(containerId);
-            if (!routes || routes.length === 0) { list.innerHTML = 'Нет маршрутов'; return; }
-            list.innerHTML = '';
+            const validRoutes = routes.filter(r => r && r.id); // Защита от пустых коллекций
             
+            if (!validRoutes || validRoutes.length === 0) { 
+                list.innerHTML = '<p style="color:gray;">Нет доступных маршрутов</p>'; 
+                return; 
+            }
+            
+            list.innerHTML = '';
             const collOptions = myCollections.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
 
-            routes.forEach(r => {
+            validRoutes.forEach(r => {
+                window.routePOIs[r.id] = r.poi || []; // Сохраняем точки безопасно
+                
                 const div = document.createElement('div');
                 div.className = 'card';
                 div.innerHTML = `
                     <h3>${r.title}</h3>
                     <div class="tags"><span class="tag">${r.category}</span><span class="tag">Сложность: ${r.difficulty}</span></div>
-                    <p style="font-size:12px">${r.description}</p>
-                    <button class="btn-primary" onclick='drawRoute(${JSON.stringify(r.poi)})'>🗺️ На карте</button>
+                    <p style="font-size:12px">${r.description || ''}</p>
+                    <button class="btn-primary" onclick="drawRoute(window.routePOIs[${r.id}])">🗺️ На карте</button>
                     ${!isReadOnly && myCollections.length > 0 ? `
                         <div style="margin-top:10px; background:#f4f4f4; padding:5px; border-radius:5px;">
                             <select id="sel_${r.id}" style="width:60%; display:inline;">${collOptions}</select>

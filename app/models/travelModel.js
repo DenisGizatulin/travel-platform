@@ -2,10 +2,9 @@ const db = require('../config/db');
 
 // --- МАРШРУТЫ И КАТЕГОРИИ ---
 const getAllRoutes = async () => {
-    // ИСПРАВЛЕНИЕ: Мы явно перечисляем все колонки из `routes` в GROUP BY, чтобы PostgreSQL не выдавал ошибку.
     const { rows } = await db.query(`
         SELECT r.*, COALESCE(AVG(rev.rating), 0) as avg_rating,
-        COALESCE(json_agg(p ORDER BY p.sort_order) FILTER (WHERE p.id IS NOT NULL), '[]') as poi
+        COALESCE(json_agg(p ORDER BY p.sort_order) FILTER (WHERE p.id IS NOT NULL), '[]'::json) as poi
         FROM routes r
         LEFT JOIN points_of_interest p ON r.id = p.route_id
         LEFT JOIN reviews rev ON r.id = rev.route_id
@@ -16,7 +15,7 @@ const getAllRoutes = async () => {
 };
 
 const getUniqueCategories = async () => {
-    const { rows } = await db.query('SELECT DISTINCT category FROM routes');
+    const { rows } = await db.query('SELECT DISTINCT category FROM routes WHERE category IS NOT NULL');
     return rows.map(r => r.category);
 };
 
@@ -34,14 +33,19 @@ const createRoute = async (userId, data) => {
                 await client.query('INSERT INTO points_of_interest (route_id, lat, lng, sort_order) VALUES ($1, $2, $3, $4)', [routeId, data.poi[i].lat, data.poi[i].lng, i+1]);
             }
         }
-        await client.query('COMMIT'); return routeId;
-    } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
+        await client.query('COMMIT'); 
+        return routeId;
+    } catch (e) { 
+        await client.query('ROLLBACK'); 
+        throw e; 
+    } finally { 
+        client.release(); 
+    }
 };
 
 // --- ПОЛЬЗОВАТЕЛЬ, ПРЕДПОЧТЕНИЯ И РЕКОМЕНДАЦИИ ---
 const getUserPreferences = async (userId) => {
     const { rows } = await db.query('SELECT preferences FROM users WHERE id = $1', [userId]);
-    // Защита от случая, если пользователя с таким ID нет
     return rows.length > 0 ? rows[0].preferences : '';
 };
 
@@ -51,16 +55,18 @@ const updateUserPreferences = async (userId, prefs) => {
 
 const getRecommendations = async (userId) => {
     const prefsString = await getUserPreferences(userId);
-    const prefsArray = prefsString ? prefsString.split(',').map(p => p.trim()) : [];
-    if (prefsArray.length === 0) return []; // Если предпочтений нет, возвращаем пустоту
+    const prefsArray = prefsString ? prefsString.split(',').map(p => p.trim()).filter(Boolean) : [];
+    if (prefsArray.length === 0) return []; 
     
     const { rows } = await db.query(`
-        SELECT r.*, COALESCE(AVG(rev.rating), 0) as avg_rating
+        SELECT r.*, COALESCE(AVG(rev.rating), 0) as avg_rating,
+        COALESCE(json_agg(p ORDER BY p.sort_order) FILTER (WHERE p.id IS NOT NULL), '[]'::json) as poi
         FROM routes r
+        LEFT JOIN points_of_interest p ON r.id = p.route_id
         LEFT JOIN reviews rev ON r.id = rev.route_id
         WHERE r.category = ANY($1::text[]) 
            OR r.description ILIKE ANY(SELECT '%' || unnest($1::text[]) || '%')
-        GROUP BY r.id
+        GROUP BY r.id, r.user_id, r.title, r.description, r.category, r.difficulty, r.distance_km
         HAVING COALESCE(AVG(rev.rating), 0) >= 0
         ORDER BY avg_rating DESC LIMIT 5
     `, [prefsArray]);
@@ -74,7 +80,7 @@ const createCollection = async (userId, name) => {
 };
 
 const getUserCollections = async (userId) => {
-    const { rows } = await db.query('SELECT * FROM collections WHERE user_id = $1', [userId]);
+    const { rows } = await db.query('SELECT * FROM collections WHERE user_id = $1 ORDER BY id DESC', [userId]);
     return rows;
 };
 
@@ -84,12 +90,14 @@ const addRouteToCollection = async (collectionId, routeId) => {
 
 const getCollectionWithRoutes = async (collectionId) => {
     const { rows } = await db.query(`
-        SELECT c.name as collection_name, r.*, COALESCE(json_agg(p ORDER BY p.sort_order) FILTER (WHERE p.id IS NOT NULL), '[]') as poi
+        SELECT c.name as collection_name, r.*, 
+        COALESCE(json_agg(p ORDER BY p.sort_order) FILTER (WHERE p.id IS NOT NULL), '[]'::json) as poi
         FROM collections c
         LEFT JOIN collection_routes cr ON c.id = cr.collection_id
         LEFT JOIN routes r ON cr.route_id = r.id
         LEFT JOIN points_of_interest p ON r.id = p.route_id
-        WHERE c.id = $1 GROUP BY c.id, c.name, r.id
+        WHERE c.id = $1 
+        GROUP BY c.id, c.name, r.id, r.user_id, r.title, r.description, r.category, r.difficulty, r.distance_km
     `, [collectionId]);
     return rows;
 };
