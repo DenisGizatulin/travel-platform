@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: travel_user
+      POSTGRES_PASSWORD: travel_password
+      POSTGRES_DB: travel_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Скрипт init.sql выполнится автоматически при первом запуске БД
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  app:
+    build: ./app
+    ports:
+      - "3000:3000"
+    environment:
+      # Переменные окружения для подключения к БД (host = имя сервиса БД)
+      DB_USER: travel_user
+      DB_PASSWORD: travel_password
+      DB_NAME: travel_db
+      DB_HOST: db
+      DB_PORT: 5432
+    depends_on:
+      - db
+    restart: unless-stopped
+
+volumes:
+  pgdata:
