@@ -6,33 +6,37 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { font-family: Arial, sans-serif; display: flex; margin: 0; padding: 0; height: 100vh;}
-        #sidebar { width: 450px; background: white; height: 100%; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 1000; display: flex; flex-direction: column;}
-        .tabs { display: flex; background: #343a40; color: white; cursor: pointer; }
-        .tab { flex: 1; text-align: center; padding: 15px 0; font-size: 13px; font-weight: bold;}
+        #sidebar { width: 500px; background: white; height: 100%; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 1000; display: flex; flex-direction: column;}
+        .tabs { display: flex; background: #343a40; color: white; cursor: pointer; flex-wrap: wrap;}
+        .tab { flex: 1; text-align: center; padding: 15px 5px; font-size: 13px; font-weight: bold; min-width: 80px;}
         .tab:hover, .tab.active { background: #0d6efd; }
         .content { padding: 20px; display: none; }
         .content.active { display: block; }
         #map { flex-grow: 1; height: 100%; z-index: 1;}
         .card { border: 1px solid #dee2e6; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fff;}
         .tags { margin: 10px 0; font-size: 12px;} .tag { background: #e9ecef; padding: 4px 8px; border-radius: 12px; margin-right: 5px;}
-        button { border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; color: white; margin-top: 5px;}
-        .btn-primary { background: #0d6efd; } .btn-success { background: #198754; } .btn-warning { background: #ffc107; color: black;}
+        button { border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; color: white; margin-top: 5px; font-size: 12px;}
+        .btn-primary { background: #0d6efd; } .btn-success { background: #198754; } .btn-warning { background: #ffc107; color: black;} .btn-danger { background: #dc3545;}
         input, select, textarea { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
-        .collection-item { background: #f8f9fa; padding: 10px; margin-bottom: 5px; display: flex; justify-content: space-between;}
+        .collection-item { background: #f8f9fa; padding: 10px; margin-bottom: 5px; border-radius: 5px;}
+        .coll-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: bold;}
+        .coll-content { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;}
+        .small-route { background: white; padding: 8px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 13px;}
     </style>
 </head>
 <body>
 
     <div id="sidebar">
         <div class="tabs">
-            <div class="tab active" onclick="switchTab('list')">Все Маршруты</div>
-            <div class="tab" onclick="switchTab('collections')">Мои Подборки</div>
+            <div class="tab active" onclick="switchTab('list')">Маршруты</div>
+            <div class="tab" onclick="switchTab('collections')">Подборки</div>
+            <div class="tab" onclick="switchTab('reviews')">Отзывы</div>
             <div class="tab" onclick="switchTab('profile')">Профиль</div>
             <div class="tab" onclick="switchTab('create')">Создать</div>
         </div>
 
         <div id="list" class="content active">
-            <h2 id="listTitle">Доступные маршруты</h2>
+            <h2>Доступные маршруты</h2>
             <div id="routesList">Загрузка...</div>
         </div>
 
@@ -45,6 +49,19 @@
             <div id="collectionsList"></div>
         </div>
 
+        <div id="reviews" class="content">
+            <h2>Написать отзыв</h2>
+            <select id="reviewRouteSelect"></select>
+            <input type="number" id="reviewRating" min="1" max="5" placeholder="Оценка (1-5)">
+            <textarea id="reviewComment" placeholder="Ваш комментарий"></textarea>
+            <input type="hidden" id="editReviewId" value="">
+            <button class="btn-success" onclick="saveReview()">Сохранить отзыв</button>
+            <button class="btn-warning" onclick="resetReviewForm()">Отмена</button>
+            <hr>
+            <h2>Мои отзывы</h2>
+            <div id="reviewsList"></div>
+        </div>
+
         <div id="profile" class="content">
             <h2>Мои предпочтения</h2>
             <input type="text" id="prefsInput" placeholder="Горы, Парки">
@@ -55,8 +72,9 @@
         </div>
 
         <div id="create" class="content">
-            <h2>Новый маршрут</h2>
+            <h2 id="formTitle">Новый маршрут</h2>
             <form id="routeForm">
+                <input type="hidden" id="editRouteId" value="">
                 <input type="text" id="title" placeholder="Название" required>
                 <textarea id="description" placeholder="Описание"></textarea>
                 <label>Категория:</label>
@@ -66,8 +84,8 @@
                 <label>Сложность: <span id="diffVal">3</span></label>
                 <input type="range" id="difficulty" min="1" max="5" value="3" oninput="document.getElementById('diffVal').innerText=this.value">
 
-                <div style="margin: 15px 0;">Дистанция: <span id="distDisplay">0</span> км | Точек: <span id="pointsCount">0</span></div>
-                <button type="button" onclick="clearTempMap()" class="btn-warning" style="width:100%">Очистить карту</button>
+                <div style="margin: 15px 0;" id="geoInfo">Дистанция: <span id="distDisplay">0</span> км | Точек: <span id="pointsCount">0</span></div>
+                <button type="button" onclick="clearTempMap()" class="btn-warning" style="width:100%" id="clearMapBtn">Очистить карту</button>
                 <button type="submit" class="btn-primary" style="width:100%; margin-top:10px;">Сохранить маршрут</button>
             </form>
         </div>
@@ -82,9 +100,7 @@
 
         let mapLayers = L.featureGroup().addTo(map);
         let createLayers = L.featureGroup().addTo(map);
-        let isCreateMode = false, tempPOIs = [], myCollections = [];
-        
-        // Глобальное хранилище для безопасной передачи гео-точек
+        let isCreateMode = false, tempPOIs = [], myCollections = [], allRoutes = [];
         window.routePOIs = {}; 
 
         function switchTab(tabId) {
@@ -95,13 +111,14 @@
             isCreateMode = (tabId === 'create');
             
             if(tabId === 'create') loadCategories();
-            if(tabId === 'list') { document.getElementById('listTitle').innerText = 'Все маршруты'; loadRoutes(); }
+            if(tabId === 'list') loadRoutes();
             if(tabId === 'collections') loadCollections();
             if(tabId === 'profile') loadProfileAndRecs();
+            if(tabId === 'reviews') loadReviewsTab();
         }
 
         map.on('click', function(e) {
-            if (!isCreateMode) return;
+            if (!isCreateMode || document.getElementById('editRouteId').value) return; // Запрещаем менять точки при редактировании для простоты
             tempPOIs.push(e.latlng);
             createLayers.clearLayers();
             tempPOIs.forEach(p => L.marker(p).addTo(createLayers));
@@ -116,55 +133,37 @@
 
         function clearTempMap() { createLayers.clearLayers(); tempPOIs = []; document.getElementById('distDisplay').innerText='0'; document.getElementById('pointsCount').innerText='0'; }
 
-        async function safeFetch(url) {
+        async function safeFetch(url, options = {}) {
             try {
-                const res = await fetch(url);
+                const res = await fetch(url, options);
                 const data = await res.json();
-                return Array.isArray(data) ? data : (data.data || []);
-            } catch (e) { return []; }
+                return data;
+            } catch (e) { return Array.isArray(options.body) ? [] : {}; }
         }
 
         async function loadCategories() {
             const cats = await safeFetch('/api/categories');
-            document.getElementById('catList').innerHTML = cats.map(c => `<option value="${c}">`).join('');
+            document.getElementById('catList').innerHTML = (Array.isArray(cats) ? cats : []).map(c => `<option value="${c}">`).join('');
         }
 
-        async function loadCollections() {
-            myCollections = await safeFetch('/api/collections');
-            document.getElementById('collectionsList').innerHTML = myCollections.map(c => `
-                <div class="collection-item"><b>${c.name}</b> <button class="btn-success" onclick="shareCollection(${c.id})">🔗</button></div>
-            `).join('');
-        }
-
-        async function loadProfileAndRecs() {
-            try {
-                const prefRes = await fetch('/api/preferences');
-                document.getElementById('prefsInput').value = (await prefRes.json()).prefs || '';
-            } catch(e){}
-            const recs = await safeFetch('/api/recommendations');
-            renderRoutes(recs, 'recsList', true);
-        }
-
+        // --- МАРШРУТЫ ---
         async function loadRoutes() {
-            await loadCollections();
-            const routes = await safeFetch('/api/routes');
-            renderRoutes(routes, 'routesList', false);
+            myCollections = await safeFetch('/api/collections');
+            allRoutes = await safeFetch('/api/routes');
+            renderRoutes(allRoutes, 'routesList', false);
         }
 
         function renderRoutes(routes, containerId, isReadOnly) {
             const list = document.getElementById(containerId);
-            const validRoutes = routes.filter(r => r && r.id); // Защита от пустых коллекций
-            
-            if (!validRoutes || validRoutes.length === 0) { 
-                list.innerHTML = '<p style="color:gray;">Нет доступных маршрутов</p>'; 
-                return; 
-            }
+            const validRoutes = Array.isArray(routes) ? routes.filter(r => r && r.id) : [];
+            if (validRoutes.length === 0) { list.innerHTML = '<p style="color:gray;">Нет маршрутов</p>'; return; }
             
             list.innerHTML = '';
-            const collOptions = myCollections.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            const collOptions = Array.isArray(myCollections) ? myCollections.map(c => `<option value="${c.id}">${c.name}</option>`).join('') : '';
 
             validRoutes.forEach(r => {
-                window.routePOIs[r.id] = r.poi || []; // Сохраняем точки безопасно
+                window.routePOIs[r.id] = r.poi || [];
+                const dist = r.distance_km ? parseFloat(r.distance_km).toFixed(2) : 0;
                 
                 const div = document.createElement('div');
                 div.className = 'card';
@@ -172,12 +171,17 @@
                     <h3>${r.title}</h3>
                     <div class="tags"><span class="tag">${r.category}</span><span class="tag">Сложность: ${r.difficulty}</span></div>
                     <p style="font-size:12px">${r.description || ''}</p>
+                    <p style="font-size:12px"><b>Протяженность:</b> ${dist} км</p>
                     <button class="btn-primary" onclick="drawRoute(window.routePOIs[${r.id}])">🗺️ На карте</button>
-                    ${!isReadOnly && myCollections.length > 0 ? `
-                        <div style="margin-top:10px; background:#f4f4f4; padding:5px; border-radius:5px;">
-                            <select id="sel_${r.id}" style="width:60%; display:inline;">${collOptions}</select>
-                            <button class="btn-warning" onclick="addToColl(${r.id})">+</button>
-                        </div>
+                    ${!isReadOnly ? `
+                        <button class="btn-warning" onclick='editRoute(${JSON.stringify(r).replace(/'/g, "&#39;")})'>✏️ Изменить</button>
+                        <button class="btn-danger" onclick="deleteRoute(${r.id})">🗑️ Удалить</button>
+                        ${collOptions ? `
+                            <div style="margin-top:10px; background:#f4f4f4; padding:5px; border-radius:5px; display:flex;">
+                                <select id="sel_${r.id}" style="margin-bottom:0; margin-right:5px;">${collOptions}</select>
+                                <button class="btn-success" style="margin-top:0;" onclick="addToColl(${r.id})">В подборку</button>
+                            </div>
+                        ` : ''}
                     ` : ''}
                 `;
                 list.appendChild(div);
@@ -193,54 +197,198 @@
             map.fitBounds(polyline.getBounds());
         }
 
-        async function savePrefs() {
-            await fetch('/api/preferences', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({prefs: document.getElementById('prefsInput').value}) });
-            alert('Сохранено!'); loadProfileAndRecs();
+        async function deleteRoute(id) {
+            if(!confirm('Удалить маршрут?')) return;
+            await safeFetch(`/api/routes/${id}`, {method: 'DELETE'});
+            loadRoutes();
         }
 
-        async function createCollection() {
-            const name = document.getElementById('newCollName').value;
-            if(!name) return;
-            await fetch('/api/collections', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
-            document.getElementById('newCollName').value = ''; loadCollections();
-        }
-
-        async function addToColl(routeId) {
-            const collId = document.getElementById(`sel_${routeId}`).value;
-            await fetch('/api/collections/add', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({collection_id: collId, route_id: routeId}) });
-            alert('Добавлено!');
-        }
-
-        function shareCollection(collId) {
-            const url = `${window.location.origin}/?shared_collection=${collId}`;
-            navigator.clipboard.writeText(url); alert('Ссылка скопирована!\n' + url);
+        function editRoute(route) {
+            document.getElementById('editRouteId').value = route.id;
+            document.getElementById('title').value = route.title;
+            document.getElementById('description').value = route.description;
+            document.getElementById('category').value = route.category;
+            document.getElementById('difficulty').value = route.difficulty;
+            document.getElementById('diffVal').innerText = route.difficulty;
+            document.getElementById('formTitle').innerText = 'Редактирование маршрута';
+            document.getElementById('geoInfo').style.display = 'none'; // Скрываем точки при редактировании
+            document.getElementById('clearMapBtn').style.display = 'none';
+            document.querySelectorAll('.tab')[4].click(); // Переход на вкладку Создать
         }
 
         document.getElementById('routeForm').onsubmit = async (e) => {
             e.preventDefault();
-            if(tempPOIs.length < 2) return alert('Поставьте минимум 2 точки на карте!');
+            const editId = document.getElementById('editRouteId').value;
             const data = {
                 title: document.getElementById('title').value, description: document.getElementById('description').value,
                 category: document.getElementById('category').value, difficulty: document.getElementById('difficulty').value,
                 distance_km: document.getElementById('distDisplay').innerText, poi: tempPOIs
             };
             
-            const res = await fetch('/api/routes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-            if (res.ok) { alert('Создано!'); clearTempMap(); document.querySelectorAll('.tab')[0].click(); } 
-            else { alert('Ошибка сохранения (см. консоль)'); }
+            if (editId) {
+                await safeFetch(`/api/routes/${editId}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+                alert('Обновлено!');
+            } else {
+                if(tempPOIs.length < 2) return alert('Поставьте минимум 2 точки на карте!');
+                await safeFetch('/api/routes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+                alert('Создано!');
+            }
+            
+            document.getElementById('routeForm').reset();
+            document.getElementById('editRouteId').value = '';
+            document.getElementById('formTitle').innerText = 'Новый маршрут';
+            document.getElementById('geoInfo').style.display = 'block';
+            document.getElementById('clearMapBtn').style.display = 'block';
+            clearTempMap();
+            document.querySelectorAll('.tab')[0].click();
         };
 
-        window.onload = async () => {
-            const params = new URLSearchParams(window.location.search);
-            const sharedId = params.get('shared_collection');
-            if (sharedId) {
-                const routes = await safeFetch(`/api/collections/${sharedId}`);
-                document.getElementById('listTitle').innerText = `Коллекция: ${routes[0]?.collection_name || 'Пустая'}`;
-                renderRoutes(routes, 'routesList', true);
-            } else {
-                loadRoutes();
+        // --- КОЛЛЕКЦИИ ---
+        async function loadCollections() {
+            myCollections = await safeFetch('/api/collections');
+            const list = document.getElementById('collectionsList');
+            if(!Array.isArray(myCollections) || myCollections.length === 0) { list.innerHTML = '<p>Нет коллекций</p>'; return; }
+            
+            list.innerHTML = myCollections.map(c => `
+                <div class="collection-item">
+                    <div class="coll-header" onclick="toggleCollection(${c.id})">
+                        <span id="coll_name_${c.id}">${c.name}</span>
+                        <div>
+                            <button class="btn-warning" onclick="editCollection(${c.id}, event)">✏️</button>
+                            <button class="btn-danger" onclick="deleteCollection(${c.id}, event)">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="coll-content" id="coll_content_${c.id}">Загрузка...</div>
+                </div>
+            `).join('');
+        }
+
+        async function createCollection() {
+            const name = document.getElementById('newCollName').value;
+            if(!name) return;
+            await safeFetch('/api/collections', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
+            document.getElementById('newCollName').value = ''; loadCollections();
+        }
+
+        async function editCollection(id, e) {
+            e.stopPropagation();
+            const newName = prompt('Новое название коллекции:', document.getElementById(`coll_name_${id}`).innerText);
+            if(newName) {
+                await safeFetch(`/api/collections/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: newName}) });
+                loadCollections();
             }
-        };
+        }
+
+        async function deleteCollection(id, e) {
+            e.stopPropagation();
+            if(!confirm('Удалить коллекцию?')) return;
+            await safeFetch(`/api/collections/${id}`, {method: 'DELETE'});
+            loadCollections();
+        }
+
+        async function addToColl(routeId) {
+            const collId = document.getElementById(`sel_${routeId}`).value;
+            await safeFetch('/api/collections/add', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({collection_id: collId, route_id: routeId}) });
+            alert('Добавлено!');
+        }
+
+        async function toggleCollection(id) {
+            const content = document.getElementById(`coll_content_${id}`);
+            if (content.style.display === 'block') { content.style.display = 'none'; return; }
+            
+            content.style.display = 'block';
+            const routes = await safeFetch(`/api/collections/${id}/routes`);
+            if(!Array.isArray(routes) || routes.length === 0) { content.innerHTML = '<span style="font-size:12px">Пусто</span>'; return; }
+            
+            content.innerHTML = routes.map(r => `
+                <div class="small-route">
+                    <span>${r.title}</span>
+                    <button class="btn-danger" onclick="removeFromColl(${id}, ${r.id})">Удалить</button>
+                </div>
+            `).join('');
+        }
+
+        async function removeFromColl(collId, routeId) {
+            await safeFetch(`/api/collections/${collId}/routes/${routeId}`, {method: 'DELETE'});
+            toggleCollection(collId); // закрыть
+            toggleCollection(collId); // открыть заново (обновить)
+        }
+
+        // --- ОТЗЫВЫ ---
+        async function loadReviewsTab() {
+            allRoutes = await safeFetch('/api/routes');
+            const select = document.getElementById('reviewRouteSelect');
+            select.innerHTML = (Array.isArray(allRoutes) ? allRoutes : []).map(r => `<option value="${r.id}">${r.title}</option>`).join('');
+            
+            const reviews = await safeFetch('/api/reviews');
+            const list = document.getElementById('reviewsList');
+            if(!Array.isArray(reviews) || reviews.length === 0) { list.innerHTML = '<p>Отзывов пока нет</p>'; return; }
+            
+            list.innerHTML = reviews.map(r => `
+                <div class="card" style="padding:10px;">
+                    <b>Маршрут:</b> ${r.route_title} <br>
+                    <b>Оценка:</b> ${r.rating}/5 <br>
+                    <i>${r.comment}</i><br>
+                    <button class="btn-warning" onclick="editReview(${r.id}, ${r.route_id}, ${r.rating}, '${r.comment}')">✏️</button>
+                    <button class="btn-danger" onclick="deleteReview(${r.id})">🗑️</button>
+                </div>
+            `).join('');
+        }
+
+        async function saveReview() {
+            const id = document.getElementById('editReviewId').value;
+            const data = {
+                route_id: document.getElementById('reviewRouteSelect').value,
+                rating: document.getElementById('reviewRating').value,
+                comment: document.getElementById('reviewComment').value
+            };
+            if(!data.rating || data.rating < 1 || data.rating > 5) return alert('Оценка от 1 до 5');
+            
+            if (id) {
+                await safeFetch(`/api/reviews/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            } else {
+                await safeFetch('/api/reviews', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            }
+            resetReviewForm(); loadReviewsTab();
+        }
+
+        function editReview(id, routeId, rating, comment) {
+            document.getElementById('editReviewId').value = id;
+            document.getElementById('reviewRouteSelect').value = routeId;
+            document.getElementById('reviewRouteSelect').disabled = true; // Нельзя менять маршрут при редактировании
+            document.getElementById('reviewRating').value = rating;
+            document.getElementById('reviewComment').value = comment;
+        }
+
+        async function deleteReview(id) {
+            if(!confirm('Удалить отзыв?')) return;
+            await safeFetch(`/api/reviews/${id}`, {method: 'DELETE'});
+            loadReviewsTab();
+        }
+
+        function resetReviewForm() {
+            document.getElementById('editReviewId').value = '';
+            document.getElementById('reviewRouteSelect').disabled = false;
+            document.getElementById('reviewRating').value = '';
+            document.getElementById('reviewComment').value = '';
+        }
+
+        // --- ПРОФИЛЬ ---
+        async function loadProfileAndRecs() {
+            try {
+                const prefRes = await safeFetch('/api/preferences');
+                document.getElementById('prefsInput').value = prefRes.prefs || '';
+            } catch(e){}
+            const recs = await safeFetch('/api/recommendations');
+            renderRoutes(recs, 'recsList', true);
+        }
+
+        async function savePrefs() {
+            await safeFetch('/api/preferences', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({prefs: document.getElementById('prefsInput').value}) });
+            alert('Сохранено!'); loadProfileAndRecs();
+        }
+
+        window.onload = () => loadRoutes();
     </script>
 </body>
 </html>
