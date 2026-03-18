@@ -32,7 +32,7 @@ services:
   adminer:
     image: adminer
     ports:
-      - "8080:8080" # Будет доступен на порту 8080
+      - "8082:8080" # СЛЕВА порт сервера (свободный), СПРАВА внутренний порт контейнера
     depends_on:
       - db
     restart: unless-stopped
