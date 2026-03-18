@@ -13,10 +13,8 @@
         .content { padding: 20px; display: none; }
         .content.active { display: block; }
         #map { flex-grow: 1; height: 100%; z-index: 1;}
-        
         .card { border: 1px solid #dee2e6; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fff;}
         .tags { margin: 10px 0; font-size: 12px;} .tag { background: #e9ecef; padding: 4px 8px; border-radius: 12px; margin-right: 5px;}
-        
         button { border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; color: white; margin-top: 5px;}
         .btn-primary { background: #0d6efd; } .btn-success { background: #198754; } .btn-warning { background: #ffc107; color: black;}
         input, select, textarea { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
@@ -29,13 +27,13 @@
         <div class="tabs">
             <div class="tab active" onclick="switchTab('list')">Все Маршруты</div>
             <div class="tab" onclick="switchTab('collections')">Мои Подборки</div>
-            <div class="tab" onclick="switchTab('profile')">Профиль & Рекомендации</div>
+            <div class="tab" onclick="switchTab('profile')">Профиль</div>
             <div class="tab" onclick="switchTab('create')">Создать</div>
         </div>
 
         <div id="list" class="content active">
             <h2 id="listTitle">Доступные маршруты</h2>
-            <div id="routesList"></div>
+            <div id="routesList">Загрузка...</div>
         </div>
 
         <div id="collections" class="content">
@@ -49,9 +47,8 @@
 
         <div id="profile" class="content">
             <h2>Мои предпочтения</h2>
-            <p style="font-size:12px">Введите ваши любимые категории через запятую (напр. Горы, Парки, Экстрим)</p>
-            <input type="text" id="prefsInput" placeholder="Ваши интересы">
-            <button class="btn-success" onclick="savePrefs()">Сохранить предпочтения</button>
+            <input type="text" id="prefsInput" placeholder="Горы, Парки">
+            <button class="btn-success" onclick="savePrefs()">Сохранить</button>
             <hr>
             <h2>Рекомендовано вам</h2>
             <div id="recsList"></div>
@@ -61,11 +58,9 @@
             <h2>Новый маршрут</h2>
             <form id="routeForm">
                 <input type="text" id="title" placeholder="Название" required>
-                <textarea id="description" placeholder="Описание" rows="3"></textarea>
-                
-                <!-- DATALIST: Позволяет и выбирать, и писать свой текст -->
-                <label>Категория (выберите или впишите свою):</label>
-                <input list="catList" id="category" placeholder="Например: Исторические" required>
+                <textarea id="description" placeholder="Описание"></textarea>
+                <label>Категория:</label>
+                <input list="catList" id="category" required>
                 <datalist id="catList"></datalist>
                 
                 <label>Сложность: <span id="diffVal">3</span></label>
@@ -102,7 +97,6 @@
             if(tabId === 'profile') loadProfileAndRecs();
         }
 
-        // Рисование на карте
         map.on('click', function(e) {
             if (!isCreateMode) return;
             tempPOIs.push(e.latlng);
@@ -119,44 +113,47 @@
 
         function clearTempMap() { createLayers.clearLayers(); tempPOIs = []; document.getElementById('distDisplay').innerText='0'; document.getElementById('pointsCount').innerText='0'; }
 
-        // Загрузка списков
+        // Безопасный запрос к API
+        async function safeFetch(url) {
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                return Array.isArray(data) ? data : (data.data || []);
+            } catch (e) { return []; }
+        }
+
         async function loadCategories() {
-            const res = await fetch('/api/categories');
-            const cats = await res.json();
+            const cats = await safeFetch('/api/categories');
             document.getElementById('catList').innerHTML = cats.map(c => `<option value="${c}">`).join('');
         }
 
         async function loadCollections() {
-            const res = await fetch('/api/collections');
-            myCollections = await res.json();
+            myCollections = await safeFetch('/api/collections');
             document.getElementById('collectionsList').innerHTML = myCollections.map(c => `
-                <div class="collection-item">
-                    <b>${c.name}</b>
-                    <button class="btn-success" onclick="shareCollection(${c.id})">🔗 Поделиться</button>
-                </div>
+                <div class="collection-item"><b>${c.name}</b> <button class="btn-success" onclick="shareCollection(${c.id})">🔗</button></div>
             `).join('');
         }
 
         async function loadProfileAndRecs() {
-            const prefRes = await fetch('/api/preferences');
-            document.getElementById('prefsInput').value = (await prefRes.json()).prefs;
-            
-            const recsRes = await fetch('/api/recommendations');
-            renderRoutes(await recsRes.json(), 'recsList', true); // Без кнопок "Добавить"
+            try {
+                const prefRes = await fetch('/api/preferences');
+                document.getElementById('prefsInput').value = (await prefRes.json()).prefs || '';
+            } catch(e){}
+            const recs = await safeFetch('/api/recommendations');
+            renderRoutes(recs, 'recsList', true);
         }
 
         async function loadRoutes() {
-            await loadCollections(); // Обновим список коллекций для селектора
-            const res = await fetch('/api/routes');
-            renderRoutes(await res.json(), 'routesList', false);
+            await loadCollections();
+            const routes = await safeFetch('/api/routes');
+            renderRoutes(routes, 'routesList', false);
         }
 
-        // Отрисовка карточек
         function renderRoutes(routes, containerId, isReadOnly) {
             const list = document.getElementById(containerId);
-            list.innerHTML = routes.length ? '' : 'Нет маршрутов';
+            if (!routes || routes.length === 0) { list.innerHTML = 'Нет маршрутов'; return; }
+            list.innerHTML = '';
             
-            // Генерируем выпадающий список коллекций юзера
             const collOptions = myCollections.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
 
             routes.forEach(r => {
@@ -166,12 +163,11 @@
                     <h3>${r.title}</h3>
                     <div class="tags"><span class="tag">${r.category}</span><span class="tag">Сложность: ${r.difficulty}</span></div>
                     <p style="font-size:12px">${r.description}</p>
-                    <button class="btn-primary" onclick='drawRoute(${JSON.stringify(r.poi)})'>🗺️ Показать на карте</button>
-                    
+                    <button class="btn-primary" onclick='drawRoute(${JSON.stringify(r.poi)})'>🗺️ На карте</button>
                     ${!isReadOnly && myCollections.length > 0 ? `
                         <div style="margin-top:10px; background:#f4f4f4; padding:5px; border-radius:5px;">
                             <select id="sel_${r.id}" style="width:60%; display:inline;">${collOptions}</select>
-                            <button class="btn-warning" onclick="addToColl(${r.id})">В коллекцию</button>
+                            <button class="btn-warning" onclick="addToColl(${r.id})">+</button>
                         </div>
                     ` : ''}
                 `;
@@ -181,59 +177,55 @@
 
         function drawRoute(poi) {
             mapLayers.clearLayers();
-            if(!poi || !poi.length) return alert('Нет гео-точек');
+            if(!poi || !poi.length) return alert('У маршрута нет гео-точек');
             const latlngs = poi.map(p => [p.lat, p.lng]);
             const polyline = L.polyline(latlngs, {color: 'blue', weight: 4}).addTo(mapLayers);
             poi.forEach((p, i) => L.marker([p.lat, p.lng]).bindPopup(`Точка ${i+1}`).addTo(mapLayers));
             map.fitBounds(polyline.getBounds());
         }
 
-        // Действия
         async function savePrefs() {
             await fetch('/api/preferences', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({prefs: document.getElementById('prefsInput').value}) });
-            alert('Предпочтения сохранены!');
-            loadProfileAndRecs();
+            alert('Сохранено!'); loadProfileAndRecs();
         }
 
         async function createCollection() {
             const name = document.getElementById('newCollName').value;
             if(!name) return;
             await fetch('/api/collections', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
-            document.getElementById('newCollName').value = '';
-            loadCollections();
+            document.getElementById('newCollName').value = ''; loadCollections();
         }
 
         async function addToColl(routeId) {
             const collId = document.getElementById(`sel_${routeId}`).value;
             await fetch('/api/collections/add', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({collection_id: collId, route_id: routeId}) });
-            alert('Добавлено в коллекцию!');
+            alert('Добавлено!');
         }
 
         function shareCollection(collId) {
             const url = `${window.location.origin}/?shared_collection=${collId}`;
-            navigator.clipboard.writeText(url);
-            alert('Ссылка на коллекцию скопирована!\nОтправьте её друзьям.');
+            navigator.clipboard.writeText(url); alert('Ссылка скопирована!\n' + url);
         }
 
         document.getElementById('routeForm').onsubmit = async (e) => {
             e.preventDefault();
+            if(tempPOIs.length < 2) return alert('Поставьте минимум 2 точки на карте!');
             const data = {
                 title: document.getElementById('title').value, description: document.getElementById('description').value,
                 category: document.getElementById('category').value, difficulty: document.getElementById('difficulty').value,
                 distance_km: document.getElementById('distDisplay').innerText, poi: tempPOIs
             };
-            if(tempPOIs.length < 2) return alert('Минимум 2 точки!');
-            await fetch('/api/routes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-            alert('Маршрут создан!'); clearTempMap(); document.querySelectorAll('.tab')[0].click();
+            
+            const res = await fetch('/api/routes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            if (res.ok) { alert('Создано!'); clearTempMap(); document.querySelectorAll('.tab')[0].click(); } 
+            else { alert('Ошибка сохранения (см. консоль)'); }
         };
 
-        // Загрузка расшаренной коллекции по ссылке
         window.onload = async () => {
             const params = new URLSearchParams(window.location.search);
             const sharedId = params.get('shared_collection');
             if (sharedId) {
-                const res = await fetch(`/api/collections/${sharedId}`);
-                const routes = await res.json();
+                const routes = await safeFetch(`/api/collections/${sharedId}`);
                 document.getElementById('listTitle').innerText = `Коллекция: ${routes[0]?.collection_name || 'Пустая'}`;
                 renderRoutes(routes, 'routesList', true);
             } else {
